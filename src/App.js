@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 const TIME_OPTIONS = [
   { label: "자(子) 23:30 ~ 01:29", value: "자(子)" },
@@ -20,13 +20,14 @@ function App() {
   const [time, setTime] = useState("");
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const timerRef = useRef();
 
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setAnswer("");
     try {
-      // API로 보내는 데이터 구조
       const data = {
         action: {
           detailParams: {
@@ -35,11 +36,6 @@ function App() {
           }
         }
       };
-      // const response = await fetch("http://127.0.0.1:5000", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(data)
-      // });
       const response = await fetch("https://pmk9440.pythonanywhere.com/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,7 +47,24 @@ function App() {
       setAnswer("로또 번호 요청 중 오류 발생!");
     }
     setLoading(false);
+
+    // 1분(60초) 타이머 시작
+    setCooldown(60);
+    timerRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  React.useEffect(() => {
+    return () => clearInterval(timerRef.current);
+  }, []);
 
   return (
     <div
@@ -121,22 +134,32 @@ function App() {
         <button
           type="submit"
           style={{
-            background: "#6366f1",
+            background: cooldown > 0 ? "#d1d5db" : "#6366f1",
             color: "#fff",
             border: "none",
             padding: "0.7rem 1.5rem",
             borderRadius: "1rem",
             fontSize: "1.1rem",
-            cursor: "pointer",
+            cursor: cooldown > 0 || loading ? "not-allowed" : "pointer",
             fontWeight: 700,
             marginBottom: 16,
             boxShadow: "0 2px 8px rgba(99,102,241,0.08)",
-            letterSpacing: "1px"
+            letterSpacing: "1px",
+            transition: "background 0.2s"
           }}
-          disabled={loading}
+          disabled={loading || cooldown > 0}
         >
-          {loading ? "생성 중..." : "로또 번호 생성하기"}
+          {loading
+            ? "생성 중..."
+            : cooldown > 0
+            ? `${cooldown}초 뒤 재생성`
+            : "로또 번호 생성하기"}
         </button>
+        {cooldown > 0 && (
+          <div style={{ marginTop: 8, color: "#6366f1", fontWeight: 500 }}>
+            {`남은 시간: ${cooldown}초`}
+          </div>
+        )}
         <div
           style={{
             whiteSpace: "pre-line",
