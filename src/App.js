@@ -15,18 +15,110 @@ const TIME_OPTIONS = [
   { label: "해(亥) 21:30 ~ 23:29", value: "해(亥)" }
 ];
 
+const COLORS = [
+  "#f8c445", // 노랑
+  "#64b5f6", // 파랑
+  "#ff6f91", // 분홍
+  "#b2dfdb", // 민트
+  "#f48fb1", // 핑크
+  "#90caf9", // 연파랑
+];
+
+function parseLottoText(resultText) {
+  // "1번: [4, 6, 13, 14, 34, 37]\n2번: ..." → [[4,6,13,14,34,37], ...]
+  return resultText
+    .split("\n")
+    .filter((line) => line.includes("["))
+    .map((line) => {
+      const match = line.match(/\[(.+?)\]/);
+      if (!match) return [];
+      return match[1]
+        .split(",")
+        .map((n) => parseInt(n.trim(), 10))
+        .filter((n) => !isNaN(n));
+    });
+}
+
+// Lotto 디자인 컴포넌트
+function LottoTicket({ resultText }) {
+  if (!resultText) return null;
+  const lottoLines = parseLottoText(resultText);
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {lottoLines.map((nums, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "#fff",
+            border: "2px dashed #6366f1",
+            borderRadius: 16,
+            boxShadow: "0 2px 8px #eee",
+            padding: "10px 20px",
+            margin: "8px 0",
+            maxWidth: 350,
+            marginLeft: "auto",
+            marginRight: "auto",
+            position: "relative",
+          }}
+        >
+          <span
+            style={{
+              minWidth: 26,
+              color: "#bdbdbd",
+              fontWeight: "bold",
+              marginRight: 6,
+              fontSize: 14,
+            }}
+          >
+            {String.fromCharCode(65 + i)}
+          </span>
+          {nums.map((num, idx) => (
+            <span
+              key={num}
+              style={{
+                width: 32,
+                height: 32,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "50%",
+                background: COLORS[idx % COLORS.length],
+                color: "#fff",
+                fontWeight: "bold",
+                fontSize: 18,
+                margin: "0 5px",
+                border: "2px solid #fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.10)",
+              }}
+            >
+              {num}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [birth, setBirth] = useState("");
   const [time, setTime] = useState("");
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [compareResult, setCompareResult] = useState(null);
+  const [showCompare, setShowCompare] = useState(false);
   const timerRef = useRef();
 
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setAnswer("");
+    setCompareResult(null);  // 결과 초기화
+    setShowCompare(false);
     try {
       const data = {
         action: {
@@ -59,6 +151,24 @@ function App() {
         return prev - 1;
       });
     }, 1000);
+  };
+
+  // 과거 당첨 이력 비교하기 버튼 클릭 핸들러
+  const handleCompare = async () => {
+    if (!answer) return;
+    const lottoLines = parseLottoText(answer); // 기존 함수 재활용
+    try {
+      const res = await fetch("https://pmk9440.pythonanywhere.com/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines: lottoLines }),
+      });
+      const result = await res.json();
+      setCompareResult(result.compare);
+      setShowCompare(true);
+    } catch (e) {
+      alert("비교 중 오류 발생!");
+    }
   };
 
   // 컴포넌트 언마운트 시 타이머 정리
@@ -160,16 +270,46 @@ function App() {
             {`남은 시간: ${cooldown}초`}
           </div>
         )}
-        <div
-          style={{
-            whiteSpace: "pre-line",
-            marginTop: 20,
-            fontSize: "1.1rem",
-            color: "#222"
-          }}
-        >
-          {answer}
-        </div>
+        <LottoTicket resultText={answer} />
+
+        {/* 비교 버튼 & 팝업 */}
+        {answer && (
+          <button
+            style={{
+              marginTop: 20, background: "#6366f1", color: "#fff",
+              padding: "10px 24px", borderRadius: "10px", border: "none", fontWeight: 700,
+              fontSize: "1.05rem", cursor: "pointer", boxShadow:"0 2px 6px #d5dfff"
+            }}
+            onClick={handleCompare}
+            type="button"
+          >
+            과거 당첨 이력 비교하기
+          </button>
+        )}
+        {showCompare && compareResult && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+            background: "rgba(0,0,0,0.28)", display: "flex", justifyContent: "center", alignItems: "center",
+            zIndex: 1000
+          }}>
+            <div style={{
+              background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 320
+            }}>
+              <h2 style={{marginBottom:16}}>과거 당첨 이력 비교</h2>
+              {compareResult.map((row, i) => (
+                <div key={i} style={{margin: "8px 0"}}>
+                  <b>{String.fromCharCode(65 + i)}</b>: {row.same}개 일치
+                  {row.회차 && (
+                    <span style={{marginLeft:8, color:"#6366f1"}}> (회차: {row.회차}, 당첨번호: [{row.번호.join(", ")}])</span>
+                  )}
+                </div>
+              ))}
+              <button onClick={() => setShowCompare(false)}
+                style={{marginTop:16, background:"#6366f1", color:"#fff", border:"none", borderRadius:8, padding:"8px 20px", fontWeight:600, cursor:"pointer"}}
+              >닫기</button>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
