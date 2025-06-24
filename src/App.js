@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const TIME_OPTIONS = [
   { label: "자(子) 23:30 ~ 01:29", value: "자(子)" },
@@ -112,6 +112,33 @@ function App() {
   const [compareResult, setCompareResult] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
   const timerRef = useRef();
+  const [latestRound, setLatestRound] = useState(0);
+
+  // 최신 회차 fetch
+  useEffect(() => {
+    fetch("https://pmk9440.pythonanywhere.com/latest_round")
+      .then(res => res.json())
+      .then(data => setLatestRound(data.round))
+      .catch(() => setLatestRound(0));
+  }, []);
+
+  // 회차 계산
+  function getRoundTitle() {
+    if (!latestRound) return "로또 번호 생성기";
+    // 현재 시간
+    const now = new Date();
+    // 한국 시간 맞추기
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const koreaTime = new Date(utc + 9 * 60 * 60 * 1000);
+    const day = koreaTime.getDay(); // 0:일~6:토
+    const hour = koreaTime.getHours();
+    const minute = koreaTime.getMinutes();
+
+    // 매주 토요일 20시(8pm) 전이면 최신회차, 이후면 +1회차
+    let round = latestRound;
+
+    return `${round+1}회차 로또 번호 생성`;
+  }
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -197,7 +224,29 @@ function App() {
           textAlign: "center"
         }}
       >
-        <h1 style={{ color: "#222", fontSize: "2rem", marginBottom: 24 }}>로또 번호 생성기</h1>
+          <div
+            style={{
+              color: "#6366f1",
+              fontWeight: 900,
+              fontSize: "2.2rem",
+              letterSpacing: "-1px",
+              fontFamily: "'Pretendard','Noto Sans KR',sans-serif"
+            }}
+          >
+            {getRoundTitle().split("회차")[0]}회차
+          </div>
+          <div
+            style={{
+              color: "#222",
+              fontWeight: 800,
+              fontSize: "2rem",
+              marginTop: 6,
+              marginBottom: 40,
+              fontFamily: "'Pretendard','Noto Sans KR',sans-serif"
+            }}
+          >
+            로또 번호 생성
+          </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: "block", marginBottom: 4, color: "#222", fontWeight: 600 }}>
             생년월일
