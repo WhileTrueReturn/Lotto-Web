@@ -124,7 +124,7 @@ function App() {
 
   // 회차 계산
   function getRoundTitle() {
-    if (!latestRound) return "로또 번호 생성기";
+    if (!latestRound) return "최신";
     // 현재 시간
     const now = new Date();
     // 한국 시간 맞추기
