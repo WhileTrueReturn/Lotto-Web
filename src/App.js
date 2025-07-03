@@ -16,10 +16,16 @@ const TIME_OPTIONS = [
 ];
 
 const COLORS = [
-  "#f8c445", "#64b5f6", "#ff6f91", "#b2dfdb", "#f48fb1", "#90caf9"
+  "#f8c445", // 노랑
+  "#64b5f6", // 파랑
+  "#ff6f91", // 분홍
+  "#b2dfdb", // 민트
+  "#f48fb1", // 핑크
+  "#90caf9", // 연파랑
 ];
 
 function parseLottoText(resultText) {
+  // "1번: [4, 6, 13, 14, 34, 37]\n2번: ..." → [[4,6,13,14,34,37], ...]
   return resultText
     .split("\n")
     .filter((line) => line.includes("["))
@@ -33,6 +39,7 @@ function parseLottoText(resultText) {
     });
 }
 
+// Lotto 디자인 컴포넌트
 function LottoTicket({ resultText }) {
   if (!resultText) return null;
   const lottoLines = parseLottoText(resultText);
@@ -107,10 +114,9 @@ function App() {
   const timerRef = useRef();
   const [latestRound, setLatestRound] = useState(0);
 
-  // 나의 당첨 이력 관련
-  const [myWinStats, setMyWinStats] = useState("");
-  const [showMyWins, setShowMyWins] = useState(false);
-  const [myWinsLoading, setMyWinsLoading] = useState(false);
+  // [1] 당첨 이력 팝업 state
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyResult, setHistoryResult] = useState(null);
 
   // 최신 회차 fetch
   useEffect(() => {
@@ -123,28 +129,26 @@ function App() {
   // 회차 계산
   function getRoundTitle() {
     if (!latestRound) return "최신";
+    // 현재 시간
     const now = new Date();
+    // 한국 시간 맞추기
     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
     const koreaTime = new Date(utc + 9 * 60 * 60 * 1000);
-    const day = koreaTime.getDay();
+    const day = koreaTime.getDay(); // 0:일~6:토
     const hour = koreaTime.getHours();
-    const minute = koreaTime.getMinutes();
 
+    // 매주 토요일 20시(8pm) 전이면 최신회차, 이후면 +1회차
     let round = latestRound;
-    // 20시(8pm) 이후라면 다음회차로
-    if (day === 6 && hour >= 20) round += 1;
-    else if (day > 6) round += 1;
-    return `${round + 1}회차 로또 번호 생성`;
+    if (day > 6 || (day === 6 && hour >= 20)) round += 1;
+    return `${round+1}회차 로또 번호 생성`;
   }
 
   const handleSubmit = async e => {
     e.preventDefault();
     setLoading(true);
     setAnswer("");
-    setCompareResult(null);
+    setCompareResult(null);  // 결과 초기화
     setShowCompare(false);
-    setMyWinStats("");
-    setShowMyWins(false);
     try {
       const data = {
         action: {
@@ -166,6 +170,7 @@ function App() {
     }
     setLoading(false);
 
+    // 1분(60초) 타이머 시작
     setCooldown(60);
     timerRef.current = setInterval(() => {
       setCooldown(prev => {
@@ -178,10 +183,10 @@ function App() {
     }, 1000);
   };
 
-  // 과거 당첨 이력 비교
+  // 과거 당첨 이력 비교하기 버튼 클릭 핸들러
   const handleCompare = async () => {
     if (!answer) return;
-    const lottoLines = parseLottoText(answer);
+    const lottoLines = parseLottoText(answer); // 기존 함수 재활용
     try {
       const res = await fetch("https://pmk9440.pythonanywhere.com/compare", {
         method: "POST",
@@ -196,20 +201,20 @@ function App() {
     }
   };
 
-  // 나의 당첨 이력 버튼
-  const handleMyWins = async () => {
-    setMyWinsLoading(true);
-    setShowMyWins(true);
+  // [2] "당첨이력" 우측상단 버튼 핸들러
+  const handleHistory = async () => {
     try {
-      const res = await fetch("https://pmk9440.pythonanywhere.com/my_wins");
-      const data = await res.json();
-      setMyWinStats(data.result);
-    } catch {
-      setMyWinStats("조회 중 오류가 발생했습니다.");
+      const res = await fetch("https://pmk9440.pythonanywhere.com/generate_stats");
+      const result = await res.json();
+      setHistoryResult(result);   // result = { "1등": 0, "2등": 3, "3등": 1 }
+      setShowHistory(true);
+    } catch (e) {
+      setHistoryResult(null);
+      setShowHistory(true);
     }
-    setMyWinsLoading(false);
   };
 
+  // 컴포넌트 언마운트 시 타이머 정리
   useEffect(() => {
     return () => clearInterval(timerRef.current);
   }, []);
@@ -221,9 +226,25 @@ function App() {
         background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
         display: "flex",
         justifyContent: "center",
-        alignItems: "center"
+        alignItems: "center",
+        position: "relative"
       }}
     >
+      {/* [2] 우측 상단 "당첨이력" 버튼 */}
+      <button
+        style={{
+          position: "absolute", top: 28, right: 38, zIndex: 100,
+          background: "#6366f1", color: "#fff", fontWeight: 700,
+          border: "none", borderRadius: 12, fontSize: "1.05rem",
+          padding: "10px 24px", boxShadow:"0 2px 8px #d5dfff", cursor: "pointer"
+        }}
+        onClick={handleHistory}
+        type="button"
+      >
+        당첨이력
+      </button>
+
+      {/* 기존 form */}
       <form
         onSubmit={handleSubmit}
         style={{
@@ -332,13 +353,13 @@ function App() {
         )}
         <LottoTicket resultText={answer} />
 
-        {/* 과거 당첨 이력 비교 버튼 */}
+        {/* 비교 버튼 & 팝업 */}
         {answer && (
           <button
             style={{
               marginTop: 20, background: "#6366f1", color: "#fff",
               padding: "10px 24px", borderRadius: "10px", border: "none", fontWeight: 700,
-              fontSize: "1.05rem", cursor: "pointer", boxShadow: "0 2px 6px #d5dfff"
+              fontSize: "1.05rem", cursor: "pointer", boxShadow:"0 2px 6px #d5dfff"
             }}
             onClick={handleCompare}
             type="button"
@@ -346,43 +367,6 @@ function App() {
             과거 당첨 이력 비교하기
           </button>
         )}
-
-        {/* 나의 당첨 이력 확인 버튼 */}
-        <button
-          style={{
-            marginTop: 14, background: "#6366f1", color: "#fff",
-            padding: "10px 24px", borderRadius: "10px", border: "none", fontWeight: 700,
-            fontSize: "1.05rem", cursor: "pointer", boxShadow: "0 2px 6px #d5dfff"
-          }}
-          onClick={handleMyWins}
-          type="button"
-        >
-          나의 당첨 이력 확인
-        </button>
-
-        {/* 나의 당첨 이력 팝업 */}
-        {showMyWins && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-            background: "rgba(0,0,0,0.20)", display: "flex", justifyContent: "center", alignItems: "center",
-            zIndex: 1000
-          }}>
-            <div style={{
-              background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 320, maxWidth: 380
-            }}>
-              <h2 style={{ marginBottom: 16 }}>나의 당첨 이력</h2>
-              {myWinsLoading
-                ? <div style={{ color: "#6366f1", fontWeight: 600 }}>조회 중...</div>
-                : <pre style={{ whiteSpace: "pre-wrap", color: "#333", fontSize: "1.06rem" }}>{myWinStats}</pre>
-              }
-              <button onClick={() => setShowMyWins(false)}
-                style={{ marginTop: 16, background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontWeight: 600, cursor: "pointer" }}
-              >닫기</button>
-            </div>
-          </div>
-        )}
-
-        {/* 과거 이력 비교 팝업 */}
         {showCompare && compareResult && (
           <div style={{
             position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
@@ -392,23 +376,49 @@ function App() {
             <div style={{
               background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 320
             }}>
-              <h2 style={{ marginBottom: 16 }}>과거 당첨 이력 비교</h2>
+              <h2 style={{marginBottom:16}}>과거 당첨 이력 비교</h2>
               {compareResult.map((row, i) => (
-                <div key={i} style={{ margin: "8px 0" }}>
+                <div key={i} style={{margin: "8px 0"}}>
                   <b>{String.fromCharCode(65 + i)}</b>: {row.same}개 일치
                   {row.회차 && (
-                    <span style={{ marginLeft: 8, color: "#6366f1" }}> (회차: {row.회차}, 당첨번호: [{row.번호.join(", ")}])</span>
+                    <span style={{marginLeft:8, color:"#6366f1"}}> (회차: {row.회차}, 당첨번호: [{row.번호.join(", ")}])</span>
                   )}
                 </div>
               ))}
               <button onClick={() => setShowCompare(false)}
-                style={{ marginTop: 16, background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontWeight: 600, cursor: "pointer" }}
+                style={{marginTop:16, background:"#6366f1", color:"#fff", border:"none", borderRadius:8, padding:"8px 20px", fontWeight:600, cursor:"pointer"}}
               >닫기</button>
             </div>
           </div>
         )}
-
       </form>
+      
+      {/* [3] 당첨이력 팝업 */}
+      {showHistory && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.28)", display: "flex", justifyContent: "center", alignItems: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 320
+          }}>
+            <h2 style={{marginBottom:16}}>당첨 이력</h2>
+            {historyResult ? (
+              <div style={{marginBottom:16, fontWeight:600, fontSize:"1.2rem"}}>
+                <div>1등: {historyResult["1등"] || 0}명</div>
+                <div>2등: {historyResult["2등"] || 0}명</div>
+                <div>3등: {historyResult["3등"] || 0}명</div>
+              </div>
+            ) : (
+              <div style={{marginBottom:16}}>데이터가 없습니다.</div>
+            )}
+            <button onClick={() => setShowHistory(false)}
+              style={{marginTop:8, background:"#6366f1", color:"#fff", border:"none", borderRadius:8, padding:"8px 20px", fontWeight:600, cursor:"pointer"}}
+            >닫기</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
