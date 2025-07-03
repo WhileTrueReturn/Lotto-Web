@@ -401,7 +401,7 @@ function App() {
           zIndex: 1000
         }}>
           <div style={{
-            background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 320
+            background: "#fff", borderRadius: 16, padding: 32, boxShadow: "0 8px 32px #aaa", minWidth: 240,textAlign: "center"
           }}>
             <h2 style={{marginBottom:16}}>당첨 이력</h2>
             {historyResult ? (
